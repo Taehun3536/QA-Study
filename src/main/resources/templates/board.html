@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>게시판 목록</title>
+</head>
+<body>
+<h1>게시판 목록</h1>
+
+<table border="1" width="600">
+    <thead>
+    <tr>
+        <th>번호</th>
+        <th>제목</th>
+        <th>작성자</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="board : ${boards}">
+        <td th:text="${board.boardId}">1</td>
+        <td>
+            <a th:href="@{'/board/detail/' + ${board.boardId}}"
+               th:text="${board.title}">제목</a>
+        </td>
+        <td th:text="${board.writerName}">-</td>
+    </tr>
+    </tbody>
+</table>
+
+<p>
+    <a href="/board/write">게시글 작성하기</a> |
+    <a href="/user/logout">로그아웃</a>
+</p>
+
+</body>
+</html>
