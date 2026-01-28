@@ -1,9 +1,14 @@
 package com.ohgiraffers.qa.api;
 
+import com.ohgiraffers.qa.dto.CreatePostRequest;
+import com.ohgiraffers.qa.dto.PostResponse;
+import com.ohgiraffers.qa.dto.UpdatePostRequest;
 import com.ohgiraffers.qa.model.Board;
 import com.ohgiraffers.qa.model.User;
 import com.ohgiraffers.qa.service.BoardService;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,26 +47,38 @@ public class PostApiController {
 
     // 게시글 생성
     @PostMapping
-    public ResponseEntity<Board> create(@RequestBody Board board, HttpSession session) {
+    public ResponseEntity<PostResponse> create(
+            @Valid @RequestBody CreatePostRequest req,
+            HttpSession session
+    ) {
         User loginUser = (User) session.getAttribute("user");
-        if (loginUser == null) {
-            return ResponseEntity.status(401).build();
-        }
+        if (loginUser == null) return ResponseEntity.status(401).build();
+
+        Board board = new Board();
+        board.setTitle(req.title());
+        board.setContent(req.content());
 
         Board saved = boardService.create(board, loginUser);
-        return ResponseEntity.status(201).body(saved);
+        return ResponseEntity.status(201).body(toResponse(saved));
     }
 
     // 게시글 수정
     @PutMapping("/{id}")
-    public ResponseEntity<Board> update(@PathVariable Long id, @RequestBody Board board, HttpSession session) {
+    public ResponseEntity<PostResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdatePostRequest req,
+            HttpSession session
+    ) {
         User loginUser = (User) session.getAttribute("user");
-        if (loginUser == null) {
-            return ResponseEntity.status(401).build();
-        }
+        if (loginUser == null) return ResponseEntity.status(401).build();
+
+        Board board = new Board();
+        board.setBoardId(id);
+        board.setTitle(req.title());
+        board.setContent(req.content());
 
         Board updated = boardService.update(board, loginUser);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(toResponse(updated));
     }
 
     // 게시글 삭제
@@ -74,5 +91,15 @@ public class PostApiController {
 
         boardService.deleteById(id, loginUser);
         return ResponseEntity.noContent().build();
+    }
+
+    private PostResponse toResponse(Board board) {
+        return new PostResponse(
+                board.getBoardId(),
+                board.getTitle(),
+                board.getContent(),
+                board.getWriterId(),
+                board.getWriterName()
+        );
     }
 }

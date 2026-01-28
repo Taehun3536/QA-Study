@@ -3,6 +3,7 @@ package com.ohgiraffers.qa.e2etest.ui;
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserContext;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Dialog;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
@@ -114,7 +115,7 @@ public class BoardTest  {
     void deleteFromDetailAcceptConfirmIfAny() {
         // detail.html에 confirm('삭제할까요?')가 있으니 dialog 대응
         // confirm이 없는 환경이어도 onceDialog는 뜰 때만 동작하므로 안전
-        page.onceDialog(dialog -> dialog.accept());
+        page.onceDialog(Dialog::accept);
 
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("삭제")).click();
 
@@ -319,7 +320,7 @@ public class BoardTest  {
         openDetailByTitle(title);
 
         // confirm이 뜨는 경우 대비
-        page.onceDialog(dialog -> dialog.accept());
+        page.onceDialog(Dialog::accept);
 
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("삭제")).click();
 
@@ -329,5 +330,77 @@ public class BoardTest  {
         // "삭제 안 됐음" 검증: 다시 목록 접근해서 title이 보이는지 확인
         page.navigate(BASE_URL + "/board/list");
         assertThat(page.getByText(title)).isVisible();
+    }
+
+    // TC 19. 로그인 후 세션무효화(쿠키 삭제)후 게시글 작성화면 접근 불가
+    @Test
+    void tc19_board_write_redirects_to_login_when_cookies_cleared() {
+        loginTestUser();
+
+        // 세션 만료를 재현하기 위해 쿠키를 삭제하여 테스트 진행
+        context.clearCookies();
+
+        // 새 브라우저로 컨텍스트 전환(쿠키 삭제 후 로그인정보가 남아있는 것을 방지)
+        switchToGuestContext();
+
+        page.navigate(BASE_URL + "/board/write");
+
+        // 로그인화면으로 리다이렉트 확인
+        assertThat(page).hasURL(LOGIN_URL);
+        assertThat(page.locator("#loginId")).isVisible();
+        assertThat(page.locator("#password")).isVisible();
+    }
+
+    // TC 20. 게시글 등록 버튼을 연속 클릭 테스트
+    @Test
+    void tc20_post_saved_butten_double_click() {
+        loginTestUser();
+
+        String title = "post_" + System.currentTimeMillis();
+        String content = "내용_" + System.currentTimeMillis();
+
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("게시글 작성하기")).click();
+        assertThat(page).hasURL(BOARD_WRITE_URL);
+
+        page.locator("input[name='title']").fill(title);
+        page.locator("textarea[name='content']").fill(content);
+
+        // When: 등록 버튼 연속 클릭(중복 요청 유도)
+        Locator submit = page.locator("button[type='submit'], input[type='submit']");
+        assertThat(submit).isVisible();
+
+        // When: 빠른 연속 클릭(첫 클릭 후 네비게이션 발생 가능)
+        submit.click();
+        try {
+            submit.click();
+        } catch (Exception ignored) {
+            // 이미 페이지가 이동되었을 수 있으므로 무시
+        }
+
+        // Then: 목록으로 이동 + 글은 1개만 존재
+        assertThat(page).hasURL(BOARD_LIST_URL);
+        assertThat(page.getByText(title)).hasCount(1);
+    }
+
+    // TC 21. 게시글 등록 입력값 검증
+    @Test
+    void tc21_post_not_submitted_when_title_is_empty() {
+        loginTestUser();
+
+        String content = "내용_" + System.currentTimeMillis();
+
+        page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("게시글 작성하기")).click();
+        assertThat(page).hasURL(BOARD_WRITE_URL);
+
+        page.locator("input[name='title']").fill("");
+        page.locator("textarea[name='content']").fill(content);
+        page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("등록")).click();
+
+        // Then: 제목 input이 invalid 상태인지 확인
+        Locator invalidTitle = page.locator("input[name='title']:invalid");
+        assertThat(invalidTitle).isVisible();
+
+        //페이지 이동이 안 됐는지도 같이 확인
+        assertThat(page).hasURL(BOARD_WRITE_URL);;
     }
 }

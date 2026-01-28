@@ -1,5 +1,9 @@
 package com.ohgiraffers.qa.service;
 
+import com.ohgiraffers.qa.exception.BoardIdNullException;
+import com.ohgiraffers.qa.exception.PostNotFoundException;
+import com.ohgiraffers.qa.exception.PostNotWriterDeleteException;
+import com.ohgiraffers.qa.exception.PostNotWriterEditException;
 import com.ohgiraffers.qa.model.Board;
 import com.ohgiraffers.qa.model.User;
 import com.ohgiraffers.qa.repository.BoardRepository;
@@ -45,14 +49,14 @@ public class BoardService {
     public Board update(Board board, User loginUser) {
 
         if (board.getBoardId() == null) {
-            throw new IllegalArgumentException("boardId는 필수입니다.");
+            throw new BoardIdNullException();
         }
 
         Board existing = boardRepository.findById(board.getBoardId())
-                .orElseThrow(() -> new IllegalArgumentException("게시글을 찾을 수 없습니다."));
+                .orElseThrow(PostNotFoundException::new);
 
         if (!existing.getWriterId().equals(loginUser.getId())) {
-            throw new IllegalStateException("작성자만 수정할 수 있습니다.");
+            throw new PostNotWriterEditException();
         }
 
         board.setWriterId(existing.getWriterId());
@@ -67,10 +71,10 @@ public class BoardService {
      * */
     public void deleteById(Long id, User loginUser) {
         Board existing = boardRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("게시글이 존재하지 않습니다. id=" + id));
+                .orElseThrow(() -> new PostNotFoundException(id));
 
         if (existing.getWriterId() != null && !existing.getWriterId().equals(loginUser.getId())) {
-            throw new IllegalStateException("작성자만 삭제할 수 있습니다.");
+            throw new PostNotWriterDeleteException();
         }
 
         boardRepository.deleteById(id);
