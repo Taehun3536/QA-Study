@@ -9,15 +9,13 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
 import com.ohgiraffers.qa.e2etest.ui.base.DbCleaner;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+
 import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
+@Tag("e2e")
 public class BoardTest  {
 
     static Playwright playwright;
@@ -65,16 +63,33 @@ public class BoardTest  {
 
 
     // ---------- helpers ----------
-    void loginTestUser() {
-        page.navigate(BASE_URL + "/user/login");
-        page.locator("#loginId").fill("test123");
-        page.locator("#password").fill("1234");
+    void joinAndLogin() {
+        // 1) 회원가입
+        page.navigate(BASE_URL + "/user/join");
+
+        String uid = "test_" + System.currentTimeMillis();
+        String pw = "1234";
+
+        page.locator("input[name='loginId']").fill(uid);
+        page.locator("input[name='password']").fill(pw);
+        page.locator("input[name='nickname']").fill("닉_" + uid);
+
+        page.getByRole(
+                AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("가입하기")
+        ).click();
+
+        Locator loginIdInput = page.locator("input[name='loginId']");
+        assertThat(loginIdInput).isVisible();
+
+        // 2) 로그인
+        loginIdInput.fill(uid);
+        page.locator("input[name='password']").fill(pw);
         page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("로그인")).click();
 
-        // jsessionid 붙을 수 있어서 pattern으로 검사
-        assertThat(page).hasURL(BOARD_LIST_URL);
         assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("게시판 목록"))).isVisible();
     }
+
 
     void createPost(String title, String content) {
         page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("게시글 작성하기")).click();
@@ -128,7 +143,7 @@ public class BoardTest  {
     // TC 6. (로그인) 게시글 없는 상태의 게시판 목록 화면
     @Test
     void tc06_board_list_shows_empty_when_no_posts_logged_in() {
-        loginTestUser();
+        joinAndLogin();
         assertThat(page).hasURL(BOARD_LIST_URL);
         assertThat(page.getByRole(AriaRole.HEADING, new Page.GetByRoleOptions().setName("게시판 목록"))).isVisible();
     }
@@ -136,7 +151,7 @@ public class BoardTest  {
     // TC 7. (로그인) 게시글 작성 화면 이동
     @Test
     void tc07_board_write_page_open_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("게시글 작성하기")).click();
         assertThat(page).hasURL(BOARD_WRITE_URL);
@@ -148,7 +163,7 @@ public class BoardTest  {
     // TC 8. (로그인) 게시글 작성 성공
     @Test
     void tc08_board_create_success_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -162,7 +177,7 @@ public class BoardTest  {
     // TC 9. (로그인) 게시글 상세 화면 진입
     @Test
     void tc09_board_detail_open_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -177,7 +192,7 @@ public class BoardTest  {
 
     @Test
     void tc10_board_edit_page_open_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -190,7 +205,7 @@ public class BoardTest  {
 
     @Test
     void tc11_board_edit_success_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -217,7 +232,7 @@ public class BoardTest  {
     // TC 12. (로그인) 게시글 삭제 화면 진입  -> 현재 UI는 “삭제 페이지 이동”이 아니라 “상세에서 바로 삭제(POST)” 구조
     @Test
     void tc12_board_delete_button_visible_on_detail_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -232,7 +247,7 @@ public class BoardTest  {
     // TC 13. (로그인) 게시글 삭제 성공 (detail에서 삭제 버튼 + confirm 처리)
     @Test
     void tc13_board_delete_success_logged_in() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -269,7 +284,7 @@ public class BoardTest  {
     @Test
     void tc16_board_detail_accessible_when_not_logged_in() {
         // 1) 로그인해서 게시글 1개 생성
-        loginTestUser();
+        joinAndLogin();
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
         createPost(title, content);
@@ -289,7 +304,7 @@ public class BoardTest  {
     // TC 17. (비로그인) 수정 시도 시 로그인으로 리다이렉트
     @Test
     void tc17_board_edit_redirects_to_login_when_not_logged_in() {
-        loginTestUser();
+        joinAndLogin();
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
         createPost(title, content);
@@ -309,7 +324,7 @@ public class BoardTest  {
     // TC 18. (비로그인) 삭제 시도 시 로그인으로 리다이렉트 + 목록 재조회 시 글 유지
     @Test
     void tc18_board_delete_redirects_to_login_and_post_still_exists_when_not_logged_in() {
-        loginTestUser();
+        joinAndLogin();
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
         createPost(title, content);
@@ -335,7 +350,7 @@ public class BoardTest  {
     // TC 19. 로그인 후 세션무효화(쿠키 삭제)후 게시글 작성화면 접근 불가
     @Test
     void tc19_board_write_redirects_to_login_when_cookies_cleared() {
-        loginTestUser();
+        joinAndLogin();
 
         // 세션 만료를 재현하기 위해 쿠키를 삭제하여 테스트 진행
         context.clearCookies();
@@ -354,7 +369,7 @@ public class BoardTest  {
     // TC 20. 게시글 등록 버튼을 연속 클릭 테스트
     @Test
     void tc20_post_saved_butten_double_click() {
-        loginTestUser();
+        joinAndLogin();
 
         String title = "post_" + System.currentTimeMillis();
         String content = "내용_" + System.currentTimeMillis();
@@ -385,7 +400,7 @@ public class BoardTest  {
     // TC 21. 게시글 등록 입력값 검증
     @Test
     void tc21_post_not_submitted_when_title_is_empty() {
-        loginTestUser();
+        joinAndLogin();
 
         String content = "내용_" + System.currentTimeMillis();
 

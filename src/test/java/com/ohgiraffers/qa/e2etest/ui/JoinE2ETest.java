@@ -5,13 +5,9 @@ import com.microsoft.playwright.options.AriaRole;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 
-import com.ohgiraffers.qa.e2etest.ui.base.DbCleaner;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
+@Tag("e2e")
 public class JoinE2ETest {
     static Playwright playwright;
     static Browser browser;
@@ -43,7 +39,6 @@ public class JoinE2ETest {
 
     @AfterEach
     void tearDown() {
-        DbCleaner.deleteTestUsers();
         context.close();
     }
 
