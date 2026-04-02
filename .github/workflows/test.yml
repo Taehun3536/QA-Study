@@ -6,11 +6,14 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# Node.js 24 관련 경고 해결을 위한 환경 변수
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    # 1. 테스트에 필요한 MySQL 서비스 설정 (DbCleaner 설정에 맞춤)
     services:
       mysql:
         image: mysql:8.0
@@ -36,17 +39,26 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 2. Playwright 실행에 필요한 브라우저 및 의존성 설치
-      - name: Install Playwright Browsers
-        run: ./gradlew :test # 1차 빌드를 통해 의존성 다운로드
-        continue-on-error: true # 빌드 실패 전 브라우저 설치 시도
+      # 1. Playwright 브라우저 및 OS 필수 라이브러리 설치 (가장 중요)
+      - name: Install Playwright Browsers and Deps
+        run: npx playwright install --with-deps chromium
 
-      - name: Install Playwright Dependencies
-        run: npx playwright install --with-deps
+      # 2. 스프링 부트 서버를 백그라운드에서 실행
+      - name: Start Spring Boot Server
+        run: ./gradlew bootRun &
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/jpa_lecture
+          DB_USER: iroha
+          DB_PW: iroha
 
-      # 3. 전체 테스트 실행 (API 테스트 + e2e 태그 테스트)
-      - name: Build and Run All Tests
-        run: ./gradlew clean test e2eTest # 태그된 E2E 테스트까지 실행
+      # 3. 서버가 완전히 뜰 때까지 대기 (Health Check)
+      - name: Wait for Server to be Ready
+        run: |
+          npx wait-on http://localhost:8080 --timeout 60000
+
+      # 4. 전체 테스트 실행 (API + UI E2E)
+      - name: Run All Tests
+        run: ./gradlew clean test e2eTest
         env:
           DB_URL: jdbc:mysql://localhost:3306/jpa_lecture
           DB_USER: iroha
