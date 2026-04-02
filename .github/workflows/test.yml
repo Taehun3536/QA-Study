@@ -1,0 +1,53 @@
+name: Java CI with MySQL and Playwright
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # 1. 테스트에 필요한 MySQL 서비스 설정 (DbCleaner 설정에 맞춤)
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: jpa_lecture
+          MYSQL_USER: iroha
+          MYSQL_PASSWORD: iroha
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # 2. Playwright 실행에 필요한 브라우저 및 의존성 설치
+      - name: Install Playwright Browsers
+        run: ./gradlew :test # 1차 빌드를 통해 의존성 다운로드
+        continue-on-error: true # 빌드 실패 전 브라우저 설치 시도
+
+      - name: Install Playwright Dependencies
+        run: npx playwright install --with-deps
+
+      # 3. 전체 테스트 실행 (API 테스트 + e2e 태그 테스트)
+      - name: Build and Run All Tests
+        run: ./gradlew clean test e2eTest # 태그된 E2E 테스트까지 실행
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/jpa_lecture
+          DB_USER: iroha
+          DB_PW: iroha
