@@ -18,18 +18,20 @@ public class BoardTest {
     BrowserContext context;
     Page page;
 
+    // 테스트 환경 설정
+    static final String BASE_URL = "http://localhost:8080";
+    static final Pattern BOARD_LIST_URL = Pattern.compile(".*/board/list(?:;jsessionid=.*)?$");
+    static final Pattern LOGIN_URL = Pattern.compile(".*/user/login(?:;jsessionid=.*)?$");
+
     // Page Objects
     JoinPage joinPage;
     LoginPage loginPage;
     BoardPage boardPage;
 
-    // URL 패턴 정의
-    static final Pattern BOARD_LIST_URL = Pattern.compile(".*/board/list(?:;jsessionid=.*)?$");
-    static final Pattern LOGIN_URL = Pattern.compile(".*/user/login(?:;jsessionid=.*)?$");
-
     @BeforeAll
     static void beforeAll() {
         playwright = Playwright.create();
+        // 브라우저가 뜨는 것을 보고 싶다면 headless를 false로 바꾸세요.
         browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
     }
 
@@ -44,10 +46,12 @@ public class BoardTest {
         context = browser.newContext();
         page = context.newPage();
 
-        // Page Objects 초기화
-        joinPage = new JoinPage(page);
-        loginPage = new LoginPage(page);
-        boardPage = new BoardPage(page);
+        // [중요] Page Objects 초기화 시 BASE_URL 주입
+        joinPage = new JoinPage(page, BASE_URL);
+        loginPage = new LoginPage(page, BASE_URL);
+        boardPage = new BoardPage(page, BASE_URL);
+
+        page.setDefaultTimeout(10_000);
     }
 
     @AfterEach
@@ -69,6 +73,7 @@ public class BoardTest {
     void tc08_board_create_success_logged_in() {
         joinAndLogin();
         String title = "post_" + System.currentTimeMillis();
+
         boardPage.createPost(title, "테스트 내용");
 
         assertThat(page).hasURL(BOARD_LIST_URL);
@@ -81,6 +86,7 @@ public class BoardTest {
         joinAndLogin();
         String title = "post_" + System.currentTimeMillis();
         boardPage.createPost(title, "내용");
+
         boardPage.openDetail(title);
         boardPage.deletePostWithConfirm();
 
@@ -95,11 +101,15 @@ public class BoardTest {
         String title = "post_" + System.currentTimeMillis();
         boardPage.createPost(title, "내용");
 
-        // 컨텍스트 전환 (비로그인 상태 재현)
+        // 세션 쿠키 삭제 (비로그인 상태 재현)
         context.clearCookies();
+
         boardPage.navigateToList();
         boardPage.openDetail(title);
-        page.getByRole(com.microsoft.playwright.options.AriaRole.LINK, new Page.GetByRoleOptions().setName("수정")).click();
+
+        // 상세 페이지의 '수정' 링크 클릭 (이 부분은 BoardPage에 메서드로 추가해도 좋습니다)
+        page.getByRole(com.microsoft.playwright.options.AriaRole.LINK,
+                new Page.GetByRoleOptions().setName("수정")).click();
 
         assertThat(page).hasURL(LOGIN_URL);
     }

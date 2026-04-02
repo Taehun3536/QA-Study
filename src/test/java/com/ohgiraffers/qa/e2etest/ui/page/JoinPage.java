@@ -6,13 +6,15 @@ import com.microsoft.playwright.options.AriaRole;
 
 public class JoinPage {
     private final Page page;
+    private final String baseUrl;
     private final Locator loginIdInput;
     private final Locator passwordInput;
     private final Locator nicknameInput;
     private final Locator submitButton;
 
-    public JoinPage(Page page) {
+    public JoinPage(Page page, String baseUrl) {
         this.page = page;
+        this.baseUrl = baseUrl;
         this.loginIdInput = page.locator("input[name='loginId']");
         this.passwordInput = page.locator("input[name='password']");
         this.nicknameInput = page.locator("input[name='nickname']");
@@ -20,7 +22,7 @@ public class JoinPage {
     }
 
     public void navigate() {
-        page.navigate("http://localhost:8080/user/join");
+        page.navigate(baseUrl + "/user/join");
     }
 
     public void join(String id, String pw, String nickname) {

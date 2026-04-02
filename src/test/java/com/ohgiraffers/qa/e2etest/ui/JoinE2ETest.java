@@ -15,7 +15,10 @@ public class JoinE2ETest {
     BrowserContext context;
     Page page;
 
-    // Page Object 추가
+    // 테스트 환경 설정 (중앙 관리)
+    static final String BASE_URL = "http://localhost:8080";
+
+    // Page Object
     JoinPage joinPage;
 
     @BeforeAll
@@ -34,8 +37,11 @@ public class JoinE2ETest {
     void setUp() {
         context = browser.newContext();
         page = context.newPage();
-        // Page Object 초기화
-        joinPage = new JoinPage(page);
+
+        // [중요] Page Object 초기화 시 BASE_URL 주입
+        joinPage = new JoinPage(page, BASE_URL);
+
+        page.setDefaultTimeout(10_000);
     }
 
     @AfterEach
@@ -50,7 +56,7 @@ public class JoinE2ETest {
         joinPage.navigate();
         joinPage.join("user_" + System.currentTimeMillis(), "1234", "닉네임");
 
-        // Then
+        // Then: URL 패턴 검증
         assertThat(page).hasURL(Pattern.compile(".*/user/login.*"));
     }
 
@@ -59,16 +65,16 @@ public class JoinE2ETest {
     void join_fail_when_duplicate_id_stays_on_join_page() {
         String duplicateId = "dup_" + System.currentTimeMillis();
 
-        // 1) 최초 가입
+        // 1) 최초 가입 시도 (성공하여 중복 아이디 생성)
         joinPage.navigate();
         joinPage.join(duplicateId, "1234", "닉네임1");
         page.waitForURL("**/user/login*");
 
-        // 2) 중복 아이디 재가입
+        // 2) 동일한 ID로 재가입 시도
         joinPage.navigate();
         joinPage.join(duplicateId, "1234", "닉네임2");
 
-        // Then: 가입 페이지 URL 유지 검증
+        // Then: 가입 실패 후 페이지 이동 없이 가입 페이지 URL 유지
         assertThat(page).hasURL(Pattern.compile(".*/user/join.*"));
     }
 }

@@ -7,6 +7,7 @@ import com.microsoft.playwright.options.AriaRole;
 
 public class BoardPage {
     private final Page page;
+    private final String baseUrl;
     private final Locator writeNavLink;
     private final Locator titleInput;
     private final Locator contentInput;
@@ -14,8 +15,9 @@ public class BoardPage {
     private final Locator editButton;
     private final Locator deleteButton;
 
-    public BoardPage(Page page) {
+    public BoardPage(Page page, String baseUrl) {
         this.page = page;
+        this.baseUrl = baseUrl;
         this.writeNavLink = page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("게시글 작성하기"));
         this.titleInput = page.locator("input[name='title']");
         this.contentInput = page.locator("textarea[name='content']");
@@ -24,7 +26,8 @@ public class BoardPage {
         this.deleteButton = page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("삭제"));
     }
 
-    public void navigateToList() { page.navigate("http://localhost:8080/board/list"); }
+    public void navigateToList() { page.navigate(baseUrl + "/board/list"); }
+    public void navigateToWrite() { page.navigate(baseUrl + "/board/write"); }
 
     public void createPost(String title, String content) {
         writeNavLink.click();
