@@ -1,3 +1,5 @@
+[![Java CI with MySQL and Playwright](https://github.com/Taehun3536/QA-Study/actions/workflows/test.yml/badge.svg)](https://github.com/Taehun3536/QA-Study/actions/workflows/test.yml)
+
 ## 프로젝트 개요
 
 Spring Boot 기반 게시판 서비스에 대해  
