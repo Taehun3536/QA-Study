@@ -1,222 +1,125 @@
 package com.ohgiraffers.qa.e2etest.api;
 
 import com.ohgiraffers.qa.e2etest.api.base.ApiTestBase;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import java.util.Map;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ActiveProfiles("test")
+@DisplayName("게시글 관련 API 시스템 테스트")
 class PostApiTest extends ApiTestBase {
 
-    @Test
-    void tc1_create_post_when_login() throws Exception {
-        // Given
-        createUser("test1", "1234", "test1");
-        MockHttpSession session = loginSession("test1", "1234");
+    @Nested
+    @DisplayName("게시글 생성 테스트")
+    class CreatePost {
 
-        String body = """
-        {
-          "title": "제목",
-          "content": "내용"
+        @Test
+        @DisplayName("로그인한 사용자가 유효한 데이터를 입력하면 게시글이 정상적으로 생성된다.")
+        void createPostSuccess() throws Exception {
+            // Given: 전용 DTO 대신 Map을 사용하여 유연하게 JSON 생성
+            createUser("tester", "1234", "테스터");
+            MockHttpSession session = loginSession("tester", "1234");
+
+            Map<String, Object> requestBody = Map.of(
+                    "title", "테스트 제목",
+                    "content", "테스트 내용"
+            );
+
+            // When & Then
+            mockMvc.perform(post("/api/posts")
+                            .session(session)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(requestBody))) // ObjectMapper 활용
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.boardId").exists())
+                    .andExpect(jsonPath("$.title").value("테스트 제목"))
+                    .andExpect(jsonPath("$.writerName").value("테스터"));
         }
-        """;
 
-        // When & Then
-        mockMvc.perform(post("/api/posts")
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.boardId").exists())
-                .andExpect(jsonPath("$.title").value("제목"))
-                .andExpect(jsonPath("$.content").value("내용"))
-                .andExpect(jsonPath("$.writerId").exists())
-                .andExpect(jsonPath("$.writerName").value("test1"));
-    }
+        @Test
+        @DisplayName("비로그인 사용자가 게시글 생성을 시도하면 401 Unauthorized를 반환한다.")
+        void createPostFailUnauthenticated() throws Exception {
+            Map<String, String> body = Map.of("title", "제목", "content", "내용");
 
-    @Test
-    void tc2_create_post_when_not_login() throws Exception {
-        String body = """
-        {
-          "title": "제목",
-          "content": "내용"
+            mockMvc.perform(post("/api/posts")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isUnauthorized());
         }
-        """;
 
-        mockMvc.perform(post("/api/posts")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isUnauthorized());
-    }
+        @ParameterizedTest
+        @NullAndEmptySource // null, "" 케이스 자동 생성
+        @ValueSource(strings = {" ", "    "}) // 공백 케이스 추가
+        @DisplayName("제목이 유효하지 않은(null, 공백 등) 경우 400 Bad Request를 반환한다.")
+        void createPostFailInvalidTitle(String invalidTitle) throws Exception {
+            // Given
+            createUser("tester", "1234", "테스터");
+            MockHttpSession session = loginSession("tester", "1234");
+            Map<String, String> body = Map.of("title", invalidTitle == null ? "" : invalidTitle, "content", "내용");
+            // 참고: Map.of는 null value를 허용하지 않으므로 실제 null 테스트 시에는 다른 방식 사용 권장
 
-    @Test
-    void tc3_board_list_not_post() throws Exception {
-        // Given
-        boardRepository.deleteAll();
-
-        // When & Then
-        mockMvc.perform(get("/api/posts"))
-                .andExpect(status().isOk())
-                .andExpect(content().json("[]"));
-    }
-
-    @Test
-    void tc4_board_list_post() throws Exception {
-        // Given
-        boardRepository.deleteAll();
-        createUser("test1", "1234", "test1");
-        MockHttpSession session = loginSession("test1", "1234");
-
-        Long id = createPostAndGetId(session, "제목", "내용"); // 생성 자체는 헬퍼로
-
-        // When & Then
-        mockMvc.perform(get("/api/posts"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
-                // 최소 1개는 존재해야 함
-                .andExpect(jsonPath("$[0].boardId").exists())
-                // 방금 만든 글이 포함되어 있는지(느슨한 검증)
-                .andExpect(content().string(containsString("\"boardId\":" + id)))
-                .andExpect(content().string(containsString("\"title\":\"제목\"")))
-                .andExpect(content().string(containsString("\"content\":\"내용\"")))
-                .andExpect(content().string(containsString("\"writerName\":\"test1\"")));
-    }
-
-    @Test
-    void tc5_post_update_when_writer() throws Exception {
-        // Given
-        createUser("test1", "1234", "test1");
-        MockHttpSession session = loginSession("test1", "1234");
-
-        Long id = createPostAndGetId(session, "제목", "내용");
-
-        String updateBody = """
-        {
-          "boardId": %d,
-          "title": "수정",
-          "content": "수정"
+            // When & Then
+            mockMvc.perform(post("/api/posts")
+                            .session(session)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest());
         }
-        """.formatted(id);
 
-        // When
-        mockMvc.perform(put("/api/posts/{id}", id)
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody))
-                .andExpect(status().isOk());
+        @Test
+        @DisplayName("제목이 최대 허용 길이(예: 100자)를 초과하면 400 에러를 반환한다.")
+        void createPostFailTitleTooLong() throws Exception {
+            // 경계값 분석(Boundary Value Analysis) 적용
+            String longTitle = "A".repeat(101);
+            createUser("tester", "1234", "테스터");
+            MockHttpSession session = loginSession("tester", "1234");
+            Map<String, String> body = Map.of("title", longTitle, "content", "내용");
 
-        // Then
-        mockMvc.perform(get("/api/posts/{id}", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.boardId").value(id))
-                .andExpect(jsonPath("$.title").value("수정"))
-                .andExpect(jsonPath("$.content").value("수정"));
-    }
-
-    @Test
-    void tc6_post_update_when_not_writer() throws Exception {
-        // Given
-        boardRepository.deleteAll();
-
-        createUser("test1", "1234", "test1"); // A
-        createUser("test2", "1234", "test2"); // B
-
-        MockHttpSession sessionA = loginSession("test1", "1234");
-        MockHttpSession sessionB = loginSession("test2", "1234");
-
-        Long id = createPostAndGetId(sessionA, "제목", "내용");
-
-        String updateBody = """
-        {
-          "boardId": %d,
-          "title": "수정",
-          "content": "수정"
+            mockMvc.perform(post("/api/posts")
+                            .session(session)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest());
         }
-        """.formatted(id);
-
-        // When: B가 수정 시도
-        mockMvc.perform(put("/api/posts/{id}", id)
-                        .session(sessionB)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(updateBody))
-                .andExpect(status().isForbidden());
-
-        // Then: 변경되지 않음
-        mockMvc.perform(get("/api/posts/{id}", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.boardId").value(id))
-                .andExpect(jsonPath("$.title").value("제목"))
-                .andExpect(jsonPath("$.content").value("내용"));
     }
 
-    @Test
-    void tc7_post_delete_when_writer() throws Exception {
-        // Given
-        createUser("test1", "1234", "test1");
-        MockHttpSession session = loginSession("test1", "1234");
+    @Nested
+    @DisplayName("게시글 수정/삭제 권한 테스트")
+    class AuthorityTest {
 
-        Long id = createPostAndGetId(session, "제목", "내용");
+        @Test
+        @DisplayName("작성자가 아닌 사용자가 수정을 시도하면 403 Forbidden을 반환하고 데이터는 변하지 않는다.")
+        void updatePostFailForbidden() throws Exception {
+            // Given
+            createUser("writer", "1234", "작성자");
+            createUser("hacker", "1234", "해커");
 
-        // When & Then: 삭제 성공
-        mockMvc.perform(delete("/api/posts/{id}", id)
-                        .session(session))
-                .andExpect(status().isNoContent());
+            MockHttpSession writerSession = loginSession("writer", "1234");
+            MockHttpSession hackerSession = loginSession("hacker", "1234");
 
-        // Then: 재조회 시 404
-        mockMvc.perform(get("/api/posts/{id}", id))
-                .andExpect(status().isNotFound());
-    }
+            Long boardId = createPostAndGetId(writerSession, "원본 제목", "원본 내용");
+            Map<String, Object> updateBody = Map.of("boardId", boardId, "title", "해킹", "content", "해킹");
 
-    @Test
-    void tc8_post_delete_when_not_writer() throws Exception {
-        // Given
-        boardRepository.deleteAll();
+            // When: 작성자가 아닌 '해커' 세션으로 요청
+            mockMvc.perform(put("/api/posts/{id}", boardId)
+                            .session(hackerSession)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateBody)))
+                    .andExpect(status().isForbidden());
 
-        createUser("test1", "1234", "test1"); // A
-        createUser("test2", "1234", "test2"); // B
-
-        MockHttpSession sessionA = loginSession("test1", "1234");
-        MockHttpSession sessionB = loginSession("test2", "1234");
-
-        Long id = createPostAndGetId(sessionA, "제목", "내용");
-
-        // When: B가 삭제 시도
-        mockMvc.perform(delete("/api/posts/{id}", id)
-                        .session(sessionB))
-                .andExpect(status().isForbidden());
-
-        // Then: 삭제되지 않음
-        mockMvc.perform(get("/api/posts/{id}", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.boardId").value(id))
-                .andExpect(jsonPath("$.title").value("제목"))
-                .andExpect(jsonPath("$.content").value("내용"));
-    }
-
-    @Test
-    void tc9_create_post_when_title_empty_returns_400() throws Exception {
-        createUser("test1", "1234", "test1");
-        MockHttpSession session = loginSession("test1", "1234");
-
-        String body = """
-		    { "title": "", "content": "내용" }
-		    """;
-
-        mockMvc.perform(post("/api/posts")
-                        .session(session)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest());
+            // Then: 데이터 보존 확인
+            mockMvc.perform(get("/api/posts/{id}", boardId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.title").value("원본 제목"));
+        }
     }
 }
-

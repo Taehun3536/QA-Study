@@ -13,7 +13,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,12 +29,9 @@ public abstract class ApiTestBase {
     @Autowired protected BoardRepository boardRepository;
     @Autowired protected UserRepository userRepository;
 
-    /**
-     * 테스트 데이터 누적 방지
-     * FK가 걸려있을 수 있으니 Board -> User 순서로 삭제
-     */
     @BeforeEach
     void cleanDatabase() {
+        // FK 제약 조건에 따른 순차 삭제 유지
         boardRepository.deleteAll();
         userRepository.deleteAll();
     }
@@ -52,25 +49,25 @@ public abstract class ApiTestBase {
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("loginId", loginId)
                         .param("password", password))
-                // 로그인은 성공해야 세션이 생김 (실패하면 아래에서 null 됨)
                 .andExpect(status().isFound())
                 .andReturn();
 
         MockHttpSession session = (MockHttpSession) result.getRequest().getSession(false);
         assertThat(session).as("로그인 성공 시 세션이 생성되어야 합니다.").isNotNull();
-        assertThat(session.getAttribute("user")).as("세션에 user가 있어야 합니다.").isNotNull();
+        assertThat(session.getAttribute("user")).as("세션에 user 데이터가 포함되어야 합니다.").isNotNull();
         return session;
     }
 
+    /**
+     * 수동 문자열 결합 대신 Map과 ObjectMapper를 사용하여 JSON 생성의 안전성 확보
+     */
     protected Long createPostAndGetId(MockHttpSession session, String title, String content) throws Exception {
-        String body = """
-        {"title":"%s","content":"%s"}
-        """.formatted(title, content);
+        Map<String, String> postData = Map.of("title", title, "content", content);
 
         MvcResult result = mockMvc.perform(post("/api/posts")
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+                        .content(objectMapper.writeValueAsString(postData)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
